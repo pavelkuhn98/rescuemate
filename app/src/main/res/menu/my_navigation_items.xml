@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/nav_map"
+        android:visible="true"
+        android:enabled="true"
+        android:icon="@drawable/baseline_call_split_24"
+        android:title="Map" />
+    <item
+        android:id="@+id/nav_settings"
+        android:visible="true"
+        android:enabled="true"
+        android:icon="@drawable/baseline_app_settings_alt_24"
+        android:title="Settings" />
+    <item
+        android:id="@+id/nav_home"
+        android:visible="true"
+        android:enabled="true"
+        android:icon="@drawable/baseline_home_24"
+        android:title="Home" />
+    <item
+        android:id="@+id/nav_news"
+        android:visible="true"
+        android:enabled="true"
+        android:icon="@drawable/baseline_circle_notifications_24"
+        android:title="News" />
+
+    <!-- Add more items as needed -->
+</menu>

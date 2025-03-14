@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">rescuemate</string>
+    <string name="title_activity_maps">MapsActivity</string>
+    <string name="default_web_client_id">60477271201-39bngt1890u9kkdk6rr4fl7ukb7i8vjl.apps.googleusercontent.com</string>
+</resources>
