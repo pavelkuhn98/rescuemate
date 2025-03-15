@@ -10,9 +10,9 @@ import android.graphics.Typeface;
 import android.location.Location;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -35,15 +35,13 @@ import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.DocumentChange;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -56,17 +54,14 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
     private boolean permissionDenied = false;
     private GoogleMap mMap;
-    private ActivityMapsBinding binding;
-    private FirebaseFirestore db = FirebaseFirestore.getInstance();
+    private final FirebaseFirestore db = FirebaseFirestore.getInstance();
     private Button reportButton;
-    private Button confirmButton;
+    private Button okButton;
     private Button cancelButton;
-    private Button confirmSightingButton;
-    private Map<String, MarkerOptions> markerOptionsMap = new HashMap<>();
-    private List<MarkerData> markers = new ArrayList<>();
-    private BottomNavigationView bottomNavigationView;
-    private FirebaseAuth mAuth = FirebaseAuth.getInstance();
+    private final Map<String, Marker> markers = new HashMap<>();
+    private final FirebaseAuth mAuth = FirebaseAuth.getInstance();
     private String userEmail;
+    private ImageView imageView;
     private enum DANGER_TYPE {
         BLOCKIERT(1,"Straße blockiert (z.B. von Bäumen)"),
         UEBERFLUTET(2, "Straße überflütet"),
@@ -109,7 +104,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
         else{
             userEmail = mAuth.getCurrentUser().getEmail();
         }
-        binding = ActivityMapsBinding.inflate(getLayoutInflater());
+        com.example.rescuemate.databinding.ActivityMapsBinding binding = ActivityMapsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
@@ -125,10 +120,9 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                 }
         );
         reportButton = findViewById(R.id.report_button);
-        bottomNavigationView = findViewById(R.id.bottomNavigationView);
-        confirmSightingButton = findViewById(R.id.comfirm_danger_button);
-        confirmButton = findViewById(R.id.confirm_button);
+        okButton = findViewById(R.id.ok_button);
         cancelButton = findViewById(R.id.cancel_button);
+        imageView = findViewById(R.id.alertPlaceholder);
     }
 
     @Override
@@ -165,29 +159,32 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
         mMap.getUiSettings().setZoomControlsEnabled(false);
         mMap.getUiSettings().setZoomGesturesEnabled(true);
         mMap.getUiSettings().setMapToolbarEnabled(false);
+        mMap.setOnMarkerClickListener(marker -> {
+            Toast.makeText(MapsActivity.this,"HINWEIS: Halten dieses Infofenster gedrückt, um die Gefahr zu bestätigen",Toast.LENGTH_SHORT).show();
+            return false;
+        });
         mMap.setInfoWindowAdapter(new GoogleMap.InfoWindowAdapter() {
             @Override
             public View getInfoContents(@NonNull Marker marker) {
                 LinearLayout info = new LinearLayout(MapsActivity.this);
                 info.setOrientation(LinearLayout.VERTICAL);
-                String[] snippets = Objects.requireNonNull(marker.getSnippet()).split("\n");
-                Toast.makeText(MapsActivity.this,marker.getSnippet(),Toast.LENGTH_SHORT).show();
-
-                TextView title = new TextView(MapsActivity.this);
-                title.setTextColor(Color.BLACK);
-                title.setGravity(Gravity.CENTER);
-                title.setText(marker.getTitle());
+                MarkerData markerData = (MarkerData) marker.getTag();
+                if (markerData == null){
+                    Toast.makeText(MapsActivity.this,"Failed to get marker data",Toast.LENGTH_SHORT).show();
+                    return null;
+                }
+                String snippetText1 = DANGER_TYPE.getMessage(markerData.dangerID);
+                String snippetText2 = "Confirmed By: "+ (markerData.confirmedBy == null ? 0 : markerData.confirmedBy.size());
 
                 TextView snippet1 = new TextView(MapsActivity.this);
                 snippet1.setTextColor(Color.BLACK);
                 snippet1.setTypeface(null, Typeface.BOLD);
-                snippet1.setText(snippets[0]);
+                snippet1.setText(snippetText1);
 
                 TextView snippet2 = new TextView(MapsActivity.this);
                 snippet2.setTextColor(Color.GRAY);
-                snippet2.setText(snippets[1]);
+                snippet2.setText(snippetText2);
 
-                info.addView(title);
                 info.addView(snippet1);
                 info.addView(snippet2);
 
@@ -203,26 +200,75 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
 
         enableMyLocation();
         showMarkers();
+        mMap.setOnInfoWindowLongClickListener(marker -> {
+            MarkerData markerData = (MarkerData) marker.getTag();
+
+            if (markerData == null){
+                Toast.makeText(MapsActivity.this,"Metadaten zu diesem Marker nicht gefunden",Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            if (markerData.confirmedBy.contains(userEmail)){
+                Toast.makeText(MapsActivity.this,"Sie haben diese Gefahr schon bestätigt",Toast.LENGTH_SHORT).show();
+                return;
+            }
+            markerData.confirmedBy.add(userEmail);
+
+            db.collection("markers")
+                    .document(Objects.requireNonNullElse(marker.getTitle(),"unknown"))
+                    .set(markerData)
+                    .addOnSuccessListener(documentReference -> Log.d(TAG, "Marker changed"))
+                    .addOnFailureListener(e -> Log.w(TAG, "Error adding document", e));
+            Toast.makeText(MapsActivity.this,"Sie haben diese Gefahr bestätigt",Toast.LENGTH_SHORT).show();
+
+
+
+        });
 
         reportButton.setOnClickListener(e->createMarker());
     }
 
     private void showMarkers() {
-        db.collection("markers").get().addOnCompleteListener(task -> {
-            if (task.isSuccessful()) {
-                for (QueryDocumentSnapshot document : task.getResult()) {
-                    MarkerData markerData = document.toObject(MarkerData.class);
-                    MarkerOptions marker = new MarkerOptions()
-                            .position(new LatLng(markerData.latitude,markerData.longitude))
-                            .title(document.getId())
-                            .snippet(DANGER_TYPE.getMessage(markerData.dangerID) +"\n" + "Confirmed By: "+ (markerData.confirmedBy == null ? 0 : markerData.confirmedBy.size()))
-                            .icon(BitmapDescriptorFactory.fromResource(R.raw.alert));
-                    mMap.addMarker(marker);
+        db.collection("markers").addSnapshotListener((value, error) -> {
+            if (error != null) {
+                Log.w("MapsActivity", "listen:error", error);
+                return;
+            }
+            if (value == null){
+                Toast.makeText(MapsActivity.this,"Failed to get marker updates",Toast.LENGTH_SHORT).show();
+                return;
+            }
+            for (DocumentChange dc : value.getDocumentChanges()) {
+                switch (dc.getType()) {
+                    case ADDED:
+                        QueryDocumentSnapshot documentToAdd = dc.getDocument();
+                        MarkerData markerData = documentToAdd.toObject(MarkerData.class);
+                        Marker marker = Objects.requireNonNull(mMap.addMarker(new MarkerOptions()
+                                .position(new LatLng(markerData.latitude, markerData.longitude))
+                                .title(documentToAdd.getId())
+                                .icon(BitmapDescriptorFactory.fromResource(R.raw.alert))));
+                        marker.setTag(markerData);
 
-                    markers.add(markerData);
+                        markers.put(documentToAdd.getId(), marker);
+                        break;
+                    case MODIFIED:
+                        String idToChange = dc.getDocument().getId();
+                        QueryDocumentSnapshot documentToModify = dc.getDocument();
+                        MarkerData updatedMarkerData = documentToModify.toObject(MarkerData.class);
+                        Marker markerToChange = markers.get(idToChange);
+                        if (markerToChange != null) {
+                            markerToChange.setTag(updatedMarkerData);
+                        }
+                        break;
+                    case REMOVED:
+                        String idToRemove = dc.getDocument().getId();
+                        Marker markerToRemove = markers.get(idToRemove);
+                        if (markerToRemove != null) {
+                            markerToRemove.remove();
+                            markers.remove(idToRemove);
+                        }
+                        break;
                 }
-            } else {
-                Log.d(TAG, "Error getting documents: ", task.getException());
             }
         });
     }
@@ -242,27 +288,20 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
 
     public void createMarker(){
         reportButton.setEnabled(false);
-        Marker marker = mMap.addMarker(new MarkerOptions().position(mMap.getCameraPosition().target).draggable(false).icon(BitmapDescriptorFactory.fromResource(R.raw.alert)));
-        if (marker == null){
-            Toast.makeText(this,"Bitte erneut versuchen",Toast.LENGTH_SHORT).show();
-            return;
-        }
+        imageView.setVisibility(View.VISIBLE);
+
         LatLng currentLocation = mMap.getCameraPosition().target;
         mMap.getUiSettings().setMyLocationButtonEnabled(false);
-        bottomNavigationView.setVisibility(View.GONE);
         reportButton.setVisibility(View.INVISIBLE);
-        confirmButton.setVisibility(View.VISIBLE);
+        okButton.setVisibility(View.VISIBLE);
         cancelButton.setVisibility(View.VISIBLE);
         mMap.moveCamera(CameraUpdateFactory.zoomTo(18));
-        mMap.setOnCameraMoveListener(() -> marker.setPosition(mMap.getCameraPosition().target));
 
-        cancelButton.setOnClickListener(v -> {
-            marker.remove();
-            exitSettingMarker(confirmButton, cancelButton, currentLocation);
-        });
+        cancelButton.setOnClickListener(v -> exitSettingMarker(okButton, cancelButton, currentLocation));
 
-        confirmButton.setOnClickListener(v ->{
-            MarkerData markerData = new MarkerData(marker.getPosition().latitude,marker.getPosition().longitude);
+        okButton.setOnClickListener(v ->{
+            final LatLng cameraPos = mMap.getCameraPosition().target;
+            MarkerData markerData = new MarkerData(cameraPos.latitude, cameraPos.longitude);
             markerData.setDangerID(1);
             markerData.setReportedBy(userEmail);
             String[] choices = DANGER_TYPE.getStrings();
@@ -270,11 +309,21 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
             builder
                     .setTitle("Grund der Meldung")
                     .setPositiveButton("OK", (dialog, which) -> {
+
                         db.collection("markers")
                                 .add(markerData)
-                                .addOnSuccessListener(documentReference -> Log.d(TAG, "Marker written with ID: " + documentReference.getId()))
+                                .addOnSuccessListener(documentReference -> {
+                                    String newID = documentReference.getId();
+                                    Log.d(TAG, "Marker written with ID: " + newID);
+                                    Marker marker = addMarker(cameraPos,newID);
+                                    while(marker == null){
+                                        marker = addMarker(cameraPos,newID);
+                                    }
+                                    marker.setTag(markerData);
+                                    markers.put(newID,marker);
+                                })
                                 .addOnFailureListener(e -> Log.w(TAG, "Error adding document", e));
-                        exitSettingMarker(confirmButton, cancelButton, currentLocation);
+                        exitSettingMarker(okButton, cancelButton, currentLocation);
 
                     })
                     .setNegativeButton("Abbrechen", (dialog, which) -> {
@@ -290,11 +339,18 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
         });
     }
 
+    private Marker addMarker(LatLng pos, String title){
+        return mMap.addMarker(new MarkerOptions()
+                .position(pos)
+                .icon(BitmapDescriptorFactory.fromResource(R.raw.alert))
+                .title(title));
+    }
+
     private void exitSettingMarker(Button confirmButton, Button cancelButton, LatLng currentLocation) {
+        imageView.setVisibility(View.INVISIBLE);
         confirmButton.setVisibility(View.INVISIBLE);
         cancelButton.setVisibility(View.INVISIBLE);
         reportButton.setVisibility(View.VISIBLE);
-        bottomNavigationView.setVisibility(View.VISIBLE);
         mMap.getUiSettings().setMyLocationButtonEnabled(true);
         mMap.moveCamera(CameraUpdateFactory.zoomTo(15));
         mMap.moveCamera(CameraUpdateFactory.newLatLng(currentLocation));
