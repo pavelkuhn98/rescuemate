@@ -15,6 +15,7 @@ constraintlayout = "2.2.0"
 comGoogleAndroidLibrariesMapsplatformSecretsGradlePluginGradlePlugin = "2.0.1"
 material = "1.12.0"
 lombok = "1.18.30"
+playServicesLocation = "21.3.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -37,6 +38,7 @@ androidx-constraintlayout = { group = "androidx.constraintlayout", name = "const
 com-google-android-libraries-mapsplatform-secrets-gradle-plugin-gradle-plugin = { group = "com.google.android.libraries.mapsplatform.secrets-gradle-plugin", name = "com.google.android.libraries.mapsplatform.secrets-gradle-plugin.gradle.plugin", version.ref = "comGoogleAndroidLibrariesMapsplatformSecretsGradlePluginGradlePlugin" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 lombok = { group = "org.projectlombok", name = "lombok", version.ref = "lombok" }
+play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -2,6 +2,9 @@ package com.example.rescuemate;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
@@ -22,9 +25,13 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 
 import com.example.rescuemate.databinding.ActivityMapsBinding;
+import com.google.android.gms.location.CurrentLocationRequest;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -35,6 +42,7 @@ import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.tasks.CancellationTokenSource;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentChange;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -44,6 +52,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLocationButtonClickListener,
         GoogleMap.OnMyLocationClickListener,
@@ -52,7 +61,9 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
 
     private static final String TAG = MapsActivity.class.getSimpleName();
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
-    private boolean permissionDenied = false;
+    private static final int POST_NOTIFICATIONS_REQUEST_CODE = 2;
+    private boolean locationPermission = false;
+    private boolean notificationsPermission = false;
     private GoogleMap mMap;
     private final FirebaseFirestore db = FirebaseFirestore.getInstance();
     private Button reportButton;
@@ -62,6 +73,9 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     private final FirebaseAuth mAuth = FirebaseAuth.getInstance();
     private String userEmail;
     private ImageView imageView;
+    private final String NOTIFICATION_CHANNEL_ID = "ALERTS_RESCUEMATE";
+    private FusedLocationProviderClient fusedLocationClient;
+    private NotificationManager notificationManager;
     private enum DANGER_TYPE {
         BLOCKIERT(1,"Straße blockiert (z.B. von Bäumen)"),
         UEBERFLUTET(2, "Straße überflütet"),
@@ -119,10 +133,26 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                     return true;
                 }
         );
+        PermissionUtils.requestNotificationPermissions(this,POST_NOTIFICATIONS_REQUEST_CODE);
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+        notificationManager = getSystemService(NotificationManager.class);
+        createNotificationChannel();
         reportButton = findViewById(R.id.report_button);
         okButton = findViewById(R.id.ok_button);
         cancelButton = findViewById(R.id.cancel_button);
         imageView = findViewById(R.id.alertPlaceholder);
+    }
+
+    private void createNotificationChannel() {
+
+        CharSequence name = getString(R.string.channel_name);
+        String description = getString(R.string.channel_description);
+        int importance = NotificationManager.IMPORTANCE_DEFAULT;
+        NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, name, importance);
+        channel.setDescription(description);
+        // Register the channel with the system. You can't change the importance
+        // or other notification behaviors after this.
+        notificationManager.createNotificationChannel(channel);
     }
 
     @Override
@@ -230,6 +260,21 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
 
     private void showMarkers() {
         db.collection("markers").addSnapshotListener((value, error) -> {
+            final Location[] currentLocation = new Location[1];
+            final boolean[] locationAccessed = {false};
+            AtomicInteger counter = new AtomicInteger();
+            CurrentLocationRequest currentLocationRequest = new CurrentLocationRequest.Builder()
+                    .setDurationMillis(5000)
+                    .build();
+            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                    || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                fusedLocationClient.getCurrentLocation(currentLocationRequest,cancellationTokenSource.getToken()).addOnSuccessListener(location -> {
+                    currentLocation[0] = new Location(location);
+                    locationAccessed[0] = true;
+                });
+            }
+
             if (error != null) {
                 Log.w("MapsActivity", "listen:error", error);
                 return;
@@ -248,8 +293,14 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                                 .title(documentToAdd.getId())
                                 .icon(BitmapDescriptorFactory.fromResource(R.raw.alert))));
                         marker.setTag(markerData);
+                        Location location = new Location("");
+                        location.setLatitude(markerData.latitude);
+                        location.setLongitude(markerData.longitude);
 
                         markers.put(documentToAdd.getId(), marker);
+                        if (locationAccessed[0] && currentLocation[0].distanceTo(location) < 150){
+                            counter.getAndIncrement();
+                        }
                         break;
                     case MODIFIED:
                         String idToChange = dc.getDocument().getId();
@@ -270,7 +321,21 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                         break;
                 }
             }
+            Log.d("MainActivity","Are notifications enabled?" + notificationManager.areNotificationsEnabled());
+            Log.d("MainActivity","Updates: " + counter.get());
+            if (counter.get() > 0 && notificationManager.areNotificationsEnabled()){
+                final int NOTIFICATION_ID = 30;
+                Notification builder = new NotificationCompat.Builder(this,NOTIFICATION_CHANNEL_ID)
+                        .setSmallIcon(R.drawable.danger)
+                        .setContentTitle("RESCUEMATE")
+                        .setContentText("Es wurden "+ counter.get()+" Gefahren in ihrer Nähe gemeldet. Bleiben sie vorsichtig")
+                        .setAutoCancel(true)
+                        .build();
+                notificationManager.notify(NOTIFICATION_ID,builder);
+            }
         });
+
+
     }
 
     @SuppressLint("MissingPermission")
@@ -375,34 +440,47 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
-        if (requestCode != LOCATION_PERMISSION_REQUEST_CODE) {
-            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-            return;
+        switch (requestCode){
+            case LOCATION_PERMISSION_REQUEST_CODE:{
+                if (PermissionUtils.isPermissionGranted(permissions, grantResults,
+                        Manifest.permission.ACCESS_FINE_LOCATION) || PermissionUtils
+                        .isPermissionGranted(permissions, grantResults,
+                                Manifest.permission.ACCESS_COARSE_LOCATION)) {
+                    // Enable the my location layer if the permission has been granted.
+                    enableMyLocation();
+                } else {
+                    // Permission was denied.
+                    locationPermission = true;
+                }
+                break;
+            }
+            case POST_NOTIFICATIONS_REQUEST_CODE:
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
+
+                }
+                else{
+                    notificationsPermission = true;
+                }
+                break;
+            default:
+                super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                return;
         }
 
-        if (PermissionUtils.isPermissionGranted(permissions, grantResults,
-                Manifest.permission.ACCESS_FINE_LOCATION) || PermissionUtils
-                .isPermissionGranted(permissions, grantResults,
-                        Manifest.permission.ACCESS_COARSE_LOCATION)) {
-            // Enable the my location layer if the permission has been granted.
-            enableMyLocation();
-        } else {
-            // Permission was denied. Display an error message
-            // [START_EXCLUDE]
-            // Display the missing permission error dialog when the fragments resume.
-            permissionDenied = true;
-            // [END_EXCLUDE]
-        }
+
     }
-    // [END maps_check_location_permission_result]
 
     @Override
     protected void onResumeFragments() {
         super.onResumeFragments();
-        if (permissionDenied) {
+        if (locationPermission) {
             // Permission was not granted, display error dialog.
             showMissingPermissionError();
-            permissionDenied = false;
+            locationPermission = false;
+        }
+        if (notificationsPermission){
+            Toast.makeText(MapsActivity.this,"Die App wird keine Benachrichtigungen schicken",Toast.LENGTH_LONG).show();
+            notificationsPermission = false;
         }
     }
 

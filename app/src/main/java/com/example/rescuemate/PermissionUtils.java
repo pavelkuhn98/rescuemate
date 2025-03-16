@@ -20,6 +20,10 @@ public abstract class PermissionUtils {
                 requestId);
     }
 
+    public static void requestNotificationPermissions(FragmentActivity activity, int requestId){
+        ActivityCompat.requestPermissions(activity,new String[]{Manifest.permission.POST_NOTIFICATIONS},requestId);
+    }
+
     /**
      * Checks if the result contains a {@link PackageManager#PERMISSION_GRANTED} result for a
      * permission from a runtime permissions request.
@@ -75,7 +79,9 @@ public abstract class PermissionUtils {
             if (finishActivity) {
                 Toast.makeText(getActivity(),"Location should be provided for optimal app function." ,
                         Toast.LENGTH_SHORT).show();
-                getActivity().finish();
+                if (getActivity() != null){
+                    getActivity().finish();
+                }
             }
         }
     }
