@@ -47,6 +47,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentChange;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.storage.FirebaseStorage;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -71,6 +72,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     private Button cancelButton;
     private final Map<String, Marker> markers = new HashMap<>();
     private final FirebaseAuth mAuth = FirebaseAuth.getInstance();
+    private final FirebaseStorage storage = FirebaseStorage.getInstance();
     private String userEmail;
     private ImageView imageView;
     private final String NOTIFICATION_CHANNEL_ID = "ALERTS_RESCUEMATE";
