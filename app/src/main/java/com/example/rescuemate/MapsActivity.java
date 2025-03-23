@@ -13,10 +13,10 @@ import android.graphics.Typeface;
 import android.location.Location;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -24,6 +24,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.content.res.AppCompatResources;
+import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
@@ -49,7 +51,6 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.storage.FirebaseStorage;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -63,6 +64,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     private static final String TAG = MapsActivity.class.getSimpleName();
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
     private static final int POST_NOTIFICATIONS_REQUEST_CODE = 2;
+    private static final int TAKE_PHOTO = 3;
     private boolean locationPermission = false;
     private boolean notificationsPermission = false;
     private GoogleMap mMap;
@@ -78,36 +80,9 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     private final String NOTIFICATION_CHANNEL_ID = "ALERTS_RESCUEMATE";
     private FusedLocationProviderClient fusedLocationClient;
     private NotificationManager notificationManager;
-    private enum DANGER_TYPE {
-        BLOCKIERT(1,"Straße blockiert (z.B. von Bäumen)"),
-        UEBERFLUTET(2, "Straße überflütet"),
-        GESPERRT(3, "Straße gesperrt");
-
-        public final int id;
-        public final String description;
-        DANGER_TYPE(int i, String s) {
-            id = i;
-            description = s;
-        }
-        public static DANGER_TYPE get(int idNum){
-            return Arrays.stream(DANGER_TYPE.values()).filter(e->e.id == idNum).findAny().orElse(GESPERRT);
-        }
-
-        public static String[] getStrings(){
-            String[] options = new String[DANGER_TYPE.values().length];
-            for (int i = 0; i < DANGER_TYPE.values().length; i++){
-                options[i] = DANGER_TYPE.get(i).description;
-            }
-            return options;
-        }
-
-        public static String getMessage(int idNum){
-            return Arrays.stream(DANGER_TYPE.values()).filter(e->e.id==idNum).map(e->e.description).findAny().orElse(GESPERRT.description);
-        }
-    }
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
         super.onCreate(savedInstanceState);
         if (getSupportActionBar() != null) {
             getSupportActionBar().hide();
@@ -198,27 +173,27 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
         mMap.setInfoWindowAdapter(new GoogleMap.InfoWindowAdapter() {
             @Override
             public View getInfoContents(@NonNull Marker marker) {
-                LinearLayout info = new LinearLayout(MapsActivity.this);
-                info.setOrientation(LinearLayout.VERTICAL);
+
+                View info = getLayoutInflater().inflate(R.layout.infowindow,null);
                 MarkerData markerData = (MarkerData) marker.getTag();
+                ImageView imageView = info.findViewById(R.id.image);
+                imageView.setImageDrawable(AppCompatResources.getDrawable(MapsActivity.this,R.drawable.alert));
+                imageView.setVisibility(View.VISIBLE);
                 if (markerData == null){
                     Toast.makeText(MapsActivity.this,"Failed to get marker data",Toast.LENGTH_SHORT).show();
                     return null;
                 }
-                String snippetText1 = DANGER_TYPE.getMessage(markerData.dangerID);
+                String snippetText1 = markerData.danger;
                 String snippetText2 = "Confirmed By: "+ (markerData.confirmedBy == null ? 0 : markerData.confirmedBy.size());
 
-                TextView snippet1 = new TextView(MapsActivity.this);
+                TextView snippet1 = info.findViewById(R.id.desc);
                 snippet1.setTextColor(Color.BLACK);
                 snippet1.setTypeface(null, Typeface.BOLD);
                 snippet1.setText(snippetText1);
 
-                TextView snippet2 = new TextView(MapsActivity.this);
+                TextView snippet2 = info.findViewById(R.id.reported_status);
                 snippet2.setTextColor(Color.GRAY);
                 snippet2.setText(snippetText2);
-
-                info.addView(snippet1);
-                info.addView(snippet2);
 
                 return info;
             }
@@ -369,14 +344,12 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
         okButton.setOnClickListener(v ->{
             final LatLng cameraPos = mMap.getCameraPosition().target;
             MarkerData markerData = new MarkerData(cameraPos.latitude, cameraPos.longitude);
-            markerData.setDangerID(1);
             markerData.setReportedBy(userEmail);
-            String[] choices = DANGER_TYPE.getStrings();
             AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            LayoutInflater inflater = MapsActivity.this.getLayoutInflater();
             builder
-                    .setTitle("Grund der Meldung")
+                    .setView(inflater.inflate(R.layout.alert_dialog,null))
                     .setPositiveButton("OK", (dialog, which) -> {
-
                         db.collection("markers")
                                 .add(markerData)
                                 .addOnSuccessListener(documentReference -> {
@@ -395,14 +368,19 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                     })
                     .setNegativeButton("Abbrechen", (dialog, which) -> {
 
-                    })
-                    .setSingleChoiceItems(choices, 0, (dialog, which) -> {
-                        Toast.makeText(this,"CLICKED",Toast.LENGTH_SHORT).show();
-                        markerData.setDangerID(which);
                     });
+
 
             AlertDialog dialog = builder.create();
             dialog.show();
+            PreviewView previewView = dialog.findViewById(R.id.img_showcase);
+
+            if (previewView == null){
+                Log.e("MAPS ACTIVITY","Imageview not loaded");
+            }
+            else{
+                //TODO:
+            }
         });
     }
 
@@ -442,8 +420,8 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
-        switch (requestCode){
-            case LOCATION_PERMISSION_REQUEST_CODE:{
+        switch (requestCode) {
+            case LOCATION_PERMISSION_REQUEST_CODE: {
                 if (PermissionUtils.isPermissionGranted(permissions, grantResults,
                         Manifest.permission.ACCESS_FINE_LOCATION) || PermissionUtils
                         .isPermissionGranted(permissions, grantResults,
@@ -457,10 +435,9 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                 break;
             }
             case POST_NOTIFICATIONS_REQUEST_CODE:
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
 
-                }
-                else{
+                } else {
                     notificationsPermission = true;
                 }
                 break;
@@ -468,10 +445,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                 super.onRequestPermissionsResult(requestCode, permissions, grantResults);
                 return;
         }
-
-
     }
-
     @Override
     protected void onResumeFragments() {
         super.onResumeFragments();

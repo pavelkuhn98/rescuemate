@@ -16,6 +16,8 @@ comGoogleAndroidLibrariesMapsplatformSecretsGradlePluginGradlePlugin = "2.0.1"
 material = "1.12.0"
 lombok = "1.18.30"
 playServicesLocation = "21.3.0"
+cameraView = "1.4.1"
+cameraLifecycle = "1.4.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -39,6 +41,8 @@ com-google-android-libraries-mapsplatform-secrets-gradle-plugin-gradle-plugin = 
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 lombok = { group = "org.projectlombok", name = "lombok", version.ref = "lombok" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraView" }
+androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraLifecycle" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -11,7 +11,7 @@ import lombok.Setter;
 public class MarkerData {
     public double latitude;
     public double longitude;
-    public int dangerID;
+    public String danger;
     public List<String> confirmedBy = new ArrayList<>();
     public String reportedBy;
 

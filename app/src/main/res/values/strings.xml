@@ -4,4 +4,9 @@
     <string name="default_web_client_id">60477271201-39bngt1890u9kkdk6rr4fl7ukb7i8vjl.apps.googleusercontent.com</string>
     <string name="channel_name">rescuemate_alerts</string>
     <string name="channel_description">This is a notification channel for alerts from Rescuemate application.</string>
+    <string-array name="dangers">
+        <item>Straße blockiert</item>
+        <item>Straße überflütet</item>
+        <item>Straße gesperrt</item>
+    </string-array>
 </resources>
