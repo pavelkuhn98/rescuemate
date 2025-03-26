@@ -5,6 +5,7 @@ import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
@@ -12,6 +13,8 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.Looper;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -20,19 +23,22 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.PickVisualMediaRequest;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.content.res.AppCompatResources;
-import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 
 import com.example.rescuemate.databinding.ActivityMapsBinding;
-import com.google.android.gms.location.CurrentLocationRequest;
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -44,7 +50,7 @@ import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.tasks.CancellationTokenSource;
+import com.google.android.material.imageview.ShapeableImageView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentChange;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -79,7 +85,19 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     private ImageView imageView;
     private final String NOTIFICATION_CHANNEL_ID = "ALERTS_RESCUEMATE";
     private FusedLocationProviderClient fusedLocationClient;
+    private Location lastKnownLocation = null;
     private NotificationManager notificationManager;
+    private ActivityResultLauncher<PickVisualMediaRequest> pickMedia;
+
+    class MyLocationCallback extends LocationCallback{
+
+        public MyLocationCallback(){}
+        @Override
+        public void onLocationResult(LocationResult result){
+            lastKnownLocation = result.getLastLocation();
+        }
+
+    }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
 
@@ -95,6 +113,15 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
         else{
             userEmail = mAuth.getCurrentUser().getEmail();
         }
+        pickMedia = registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
+            // Callback is invoked after the user selects a media item or closes the
+            // photo picker.
+            if (uri != null) {
+                Log.d("PhotoPicker", "Selected URI: " + uri);
+            } else {
+                Log.d("PhotoPicker", "No media selected");
+            }
+        });
         com.example.rescuemate.databinding.ActivityMapsBinding binding = ActivityMapsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
@@ -237,20 +264,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
 
     private void showMarkers() {
         db.collection("markers").addSnapshotListener((value, error) -> {
-            final Location[] currentLocation = new Location[1];
-            final boolean[] locationAccessed = {false};
             AtomicInteger counter = new AtomicInteger();
-            CurrentLocationRequest currentLocationRequest = new CurrentLocationRequest.Builder()
-                    .setDurationMillis(5000)
-                    .build();
-            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                    || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                fusedLocationClient.getCurrentLocation(currentLocationRequest,cancellationTokenSource.getToken()).addOnSuccessListener(location -> {
-                    currentLocation[0] = new Location(location);
-                    locationAccessed[0] = true;
-                });
-            }
 
             if (error != null) {
                 Log.w("MapsActivity", "listen:error", error);
@@ -275,7 +289,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                         location.setLongitude(markerData.longitude);
 
                         markers.put(documentToAdd.getId(), marker);
-                        if (locationAccessed[0] && currentLocation[0].distanceTo(location) < 150){
+                        if (lastKnownLocation != null && lastKnownLocation.distanceTo(location) < 150){
                             counter.getAndIncrement();
                         }
                         break;
@@ -322,6 +336,8 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                 || ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
             mMap.setMyLocationEnabled(true);
+            fusedLocationClient.requestLocationUpdates(
+                    new com.google.android.gms.location.LocationRequest.Builder(3000).setDurationMillis(5000).build(),new MyLocationCallback(), Looper.myLooper());
             return;
         }
         PermissionUtils.requestLocationPermissions(this, LOCATION_PERMISSION_REQUEST_CODE);
@@ -332,12 +348,18 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
         reportButton.setEnabled(false);
         imageView.setVisibility(View.VISIBLE);
 
+        if (lastKnownLocation != null){
+            mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(lastKnownLocation.getLatitude(),lastKnownLocation.getLongitude())));
+        }
+        else{
+            Log.w("createMarker","lastKnownLocation is null");
+        }
+        mMap.moveCamera(CameraUpdateFactory.zoomTo(18));
         LatLng currentLocation = mMap.getCameraPosition().target;
         mMap.getUiSettings().setMyLocationButtonEnabled(false);
         reportButton.setVisibility(View.INVISIBLE);
         okButton.setVisibility(View.VISIBLE);
         cancelButton.setVisibility(View.VISIBLE);
-        mMap.moveCamera(CameraUpdateFactory.zoomTo(18));
 
         cancelButton.setOnClickListener(v -> exitSettingMarker(okButton, cancelButton, currentLocation));
 
@@ -373,15 +395,30 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
 
             AlertDialog dialog = builder.create();
             dialog.show();
-            PreviewView previewView = dialog.findViewById(R.id.img_showcase);
+            ShapeableImageView shapeableImageView = dialog.findViewById(R.id.img_showcase);
+            Button gallerybutton = dialog.findViewById(R.id.galleryButton);
+            Button camerabutton = dialog.findViewById(R.id.cameraButton);
 
-            if (previewView == null){
+            if (shapeableImageView == null || gallerybutton == null || camerabutton == null){
                 Log.e("MAPS ACTIVITY","Imageview not loaded");
             }
             else{
-                //TODO:
+                gallerybutton.setOnClickListener(v1 -> pickMedia.launch(new PickVisualMediaRequest.Builder()
+                        .setMediaType(ActivityResultContracts.PickVisualMedia.ImageAndVideo.INSTANCE)
+                        .build()));
+                camerabutton.setOnClickListener(v1 -> dispatchTakePictureIntent());
             }
         });
+    }
+
+    private void dispatchTakePictureIntent() {
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        try {
+            startActivity(takePictureIntent);
+        } catch (ActivityNotFoundException e) {
+            // display error state to the user
+            Log.d("MapsActivity","Failed to start camera");
+        }
     }
 
     private Marker addMarker(LatLng pos, String title){
@@ -467,4 +504,5 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
         PermissionUtils.PermissionDeniedDialog
                 .newInstance(true).show(getSupportFragmentManager(), "dialog");
     }
+
 }
