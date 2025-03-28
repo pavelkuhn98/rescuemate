@@ -12,6 +12,7 @@ import android.content.res.Resources;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.location.Location;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Looper;
 import android.provider.MediaStore;
@@ -30,7 +31,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
@@ -56,6 +56,7 @@ import com.google.firebase.firestore.DocumentChange;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -88,6 +89,9 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     private Location lastKnownLocation = null;
     private NotificationManager notificationManager;
     private ActivityResultLauncher<PickVisualMediaRequest> pickMedia;
+    private StorageReference storageReference;
+    private Uri photoUri;
+    private ShapeableImageView shapeableImageView;
 
     class MyLocationCallback extends LocationCallback{
 
@@ -118,6 +122,10 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
             // photo picker.
             if (uri != null) {
                 Log.d("PhotoPicker", "Selected URI: " + uri);
+                photoUri = uri;
+                if (shapeableImageView != null){
+                    shapeableImageView.setImageURI(uri);
+                }
             } else {
                 Log.d("PhotoPicker", "No media selected");
             }
@@ -145,6 +153,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
         okButton = findViewById(R.id.ok_button);
         cancelButton = findViewById(R.id.cancel_button);
         imageView = findViewById(R.id.alertPlaceholder);
+        storageReference = storage.getReference();
     }
 
     private void createNotificationChannel() {
@@ -203,8 +212,8 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
 
                 View info = getLayoutInflater().inflate(R.layout.infowindow,null);
                 MarkerData markerData = (MarkerData) marker.getTag();
+                String markerId = marker.getTitle();
                 ImageView imageView = info.findViewById(R.id.image);
-                imageView.setImageDrawable(AppCompatResources.getDrawable(MapsActivity.this,R.drawable.alert));
                 imageView.setVisibility(View.VISIBLE);
                 if (markerData == null){
                     Toast.makeText(MapsActivity.this,"Failed to get marker data",Toast.LENGTH_SHORT).show();
@@ -254,9 +263,6 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                     .addOnSuccessListener(documentReference -> Log.d(TAG, "Marker changed"))
                     .addOnFailureListener(e -> Log.w(TAG, "Error adding document", e));
             Toast.makeText(MapsActivity.this,"Sie haben diese Gefahr bestätigt",Toast.LENGTH_SHORT).show();
-
-
-
         });
 
         reportButton.setOnClickListener(e->createMarker());
@@ -383,6 +389,16 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                                     }
                                     marker.setTag(markerData);
                                     markers.put(newID,marker);
+                                    if (photoUri != null){
+                                        storageReference.getRoot().child(newID).putFile(photoUri).addOnFailureListener(exception -> {
+                                            Toast.makeText(MapsActivity.this,"Uploading photo failed.",Toast.LENGTH_LONG).show();
+                                            // Handle unsuccessful uploads
+                                        }).addOnSuccessListener(taskSnapshot -> {
+                                            // taskSnapshot.getMetadata() contains file metadata such as size, content-type, etc.
+                                            // ...
+                                        });
+
+                                    }
                                 })
                                 .addOnFailureListener(e -> Log.w(TAG, "Error adding document", e));
                         exitSettingMarker(okButton, cancelButton, currentLocation);
@@ -395,7 +411,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
 
             AlertDialog dialog = builder.create();
             dialog.show();
-            ShapeableImageView shapeableImageView = dialog.findViewById(R.id.img_showcase);
+            shapeableImageView = dialog.findViewById(R.id.img_showcase);
             Button gallerybutton = dialog.findViewById(R.id.galleryButton);
             Button camerabutton = dialog.findViewById(R.id.cameraButton);
 
