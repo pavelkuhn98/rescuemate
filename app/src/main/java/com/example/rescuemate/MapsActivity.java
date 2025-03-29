@@ -19,8 +19,10 @@ import android.provider.MediaStore;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -35,6 +37,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 
+import com.bumptech.glide.Glide;
 import com.example.rescuemate.databinding.ActivityMapsBinding;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
@@ -81,7 +84,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     private Button cancelButton;
     private final Map<String, Marker> markers = new HashMap<>();
     private final FirebaseAuth mAuth = FirebaseAuth.getInstance();
-    private final FirebaseStorage storage = FirebaseStorage.getInstance();
+    private FirebaseStorage storage;
     private String userEmail;
     private ImageView imageView;
     private final String NOTIFICATION_CHANNEL_ID = "ALERTS_RESCUEMATE";
@@ -92,6 +95,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     private StorageReference storageReference;
     private Uri photoUri;
     private ShapeableImageView shapeableImageView;
+    private String selectedOption = "";
 
     class MyLocationCallback extends LocationCallback{
 
@@ -132,6 +136,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
         });
         com.example.rescuemate.databinding.ActivityMapsBinding binding = ActivityMapsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        storage = FirebaseStorage.getInstance("gs://rescuemate-96692");
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
@@ -215,6 +220,18 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                 String markerId = marker.getTitle();
                 ImageView imageView = info.findViewById(R.id.image);
                 imageView.setVisibility(View.VISIBLE);
+                StorageReference imgRef = storageReference.getRoot();
+                if (markerId != null){
+                    Log.d("Download Photo","Marker assigned");
+                    Glide.with(MapsActivity.this).load(imgRef.child(markerId)).into(imageView);
+                    if (imageView.getDrawable() != null){
+                        imageView.setVisibility(View.VISIBLE);
+                    }
+                    else{
+                        Log.d("Download photo","No photo has been assigned");
+                    }
+                }
+
                 if (markerData == null){
                     Toast.makeText(MapsActivity.this,"Failed to get marker data",Toast.LENGTH_SHORT).show();
                     return null;
@@ -353,7 +370,6 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     public void createMarker(){
         reportButton.setEnabled(false);
         imageView.setVisibility(View.VISIBLE);
-
         if (lastKnownLocation != null){
             mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(lastKnownLocation.getLatitude(),lastKnownLocation.getLongitude())));
         }
@@ -366,6 +382,8 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
         reportButton.setVisibility(View.INVISIBLE);
         okButton.setVisibility(View.VISIBLE);
         cancelButton.setVisibility(View.VISIBLE);
+        final String[] options = getResources().getStringArray(R.array.dangers);
+        selectedOption = options[0];
 
         cancelButton.setOnClickListener(v -> exitSettingMarker(okButton, cancelButton, currentLocation));
 
@@ -375,9 +393,9 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
             markerData.setReportedBy(userEmail);
             AlertDialog.Builder builder = new AlertDialog.Builder(this);
             LayoutInflater inflater = MapsActivity.this.getLayoutInflater();
-            builder
-                    .setView(inflater.inflate(R.layout.alert_dialog,null))
+            builder.setView(inflater.inflate(R.layout.alert_dialog,null))
                     .setPositiveButton("OK", (dialog, which) -> {
+                        markerData.setDanger(selectedOption);
                         db.collection("markers")
                                 .add(markerData)
                                 .addOnSuccessListener(documentReference -> {
@@ -414,8 +432,8 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
             shapeableImageView = dialog.findViewById(R.id.img_showcase);
             Button gallerybutton = dialog.findViewById(R.id.galleryButton);
             Button camerabutton = dialog.findViewById(R.id.cameraButton);
-
-            if (shapeableImageView == null || gallerybutton == null || camerabutton == null){
+            Spinner spinner = dialog.findViewById(R.id.dangerOptions);
+            if (shapeableImageView == null || gallerybutton == null || camerabutton == null || spinner == null){
                 Log.e("MAPS ACTIVITY","Imageview not loaded");
             }
             else{
@@ -423,6 +441,17 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                         .setMediaType(ActivityResultContracts.PickVisualMedia.ImageAndVideo.INSTANCE)
                         .build()));
                 camerabutton.setOnClickListener(v1 -> dispatchTakePictureIntent());
+                spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                        selectedOption = (String) parent.getSelectedItem();
+                    }
+
+                    @Override
+                    public void onNothingSelected(AdapterView<?> parent) {
+                        selectedOption = options[0];
+                    }
+                });
             }
         });
     }
