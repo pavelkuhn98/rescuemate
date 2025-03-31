@@ -38,6 +38,7 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.example.rescuemate.databinding.ActivityMapsBinding;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
@@ -207,10 +208,6 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
         mMap.getUiSettings().setZoomControlsEnabled(false);
         mMap.getUiSettings().setZoomGesturesEnabled(true);
         mMap.getUiSettings().setMapToolbarEnabled(false);
-        mMap.setOnMarkerClickListener(marker -> {
-            Toast.makeText(MapsActivity.this,"HINWEIS: Halten dieses Infofenster gedrückt, um die Gefahr zu bestätigen",Toast.LENGTH_SHORT).show();
-            return false;
-        });
         mMap.setInfoWindowAdapter(new GoogleMap.InfoWindowAdapter() {
             @Override
             public View getInfoContents(@NonNull Marker marker) {
@@ -219,11 +216,11 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                 MarkerData markerData = (MarkerData) marker.getTag();
                 String markerId = marker.getTitle();
                 ImageView imageView = info.findViewById(R.id.image);
-                imageView.setVisibility(View.VISIBLE);
+                imageView.setVisibility(View.GONE);
                 StorageReference imgRef = storageReference.getRoot();
                 if (markerId != null){
                     Log.d("Download Photo","Marker assigned");
-                    Glide.with(MapsActivity.this).load(imgRef.child(markerId)).into(imageView);
+                    Glide.with(MapsActivity.this).load(imgRef.child(markerId)).diskCacheStrategy(DiskCacheStrategy.DATA).into(imageView);
                     if (imageView.getDrawable() != null){
                         imageView.setVisibility(View.VISIBLE);
                     }
@@ -237,7 +234,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                     return null;
                 }
                 String snippetText1 = markerData.danger;
-                String snippetText2 = "Confirmed By: "+ (markerData.confirmedBy == null ? 0 : markerData.confirmedBy.size());
+                String snippetText2 = "Confirmed By: "+ (markerData.confirmedBy == null ? 0 : markerData.confirmedBy.size()) + "\n" + "HINWEIS:" + "\n" + "Halten dieses Fenster gedrückt, \n um die Gefahr zu bestätigen";
 
                 TextView snippet1 = info.findViewById(R.id.desc);
                 snippet1.setTextColor(Color.BLACK);
