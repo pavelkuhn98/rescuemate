@@ -14,16 +14,11 @@ import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.FragmentActivity;
 
 public abstract class PermissionUtils {
-    public static void requestLocationPermissions(FragmentActivity activity, int requestId) {
+    public static void requestPermissions(FragmentActivity activity, int requestId) {
         ActivityCompat.requestPermissions(activity,
-                new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION},
+                new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.POST_NOTIFICATIONS,Manifest.permission.CAMERA},
                 requestId);
     }
-
-    public static void requestNotificationPermissions(FragmentActivity activity, int requestId){
-        ActivityCompat.requestPermissions(activity,new String[]{Manifest.permission.POST_NOTIFICATIONS},requestId);
-    }
-
     /**
      * Checks if the result contains a {@link PackageManager#PERMISSION_GRANTED} result for a
      * permission from a runtime permissions request.

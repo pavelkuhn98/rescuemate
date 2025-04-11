@@ -73,11 +73,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
         ActivityCompat.OnRequestPermissionsResultCallback {
 
     private static final String TAG = MapsActivity.class.getSimpleName();
-    private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
-    private static final int POST_NOTIFICATIONS_REQUEST_CODE = 2;
-    private static final int TAKE_PHOTO = 3;
-    private boolean locationPermission = false;
-    private boolean notificationsPermission = false;
+    private static final int REQUEST_ALL_PERMISSIONS = 3;
     private GoogleMap mMap;
     private final FirebaseFirestore db = FirebaseFirestore.getInstance();
     private Button reportButton;
@@ -137,6 +133,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
         });
         com.example.rescuemate.databinding.ActivityMapsBinding binding = ActivityMapsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        PermissionUtils.requestPermissions(this,REQUEST_ALL_PERMISSIONS);
         storage = FirebaseStorage.getInstance("gs://rescuemate-96692");
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
@@ -151,7 +148,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                     return true;
                 }
         );
-        PermissionUtils.requestNotificationPermissions(this,POST_NOTIFICATIONS_REQUEST_CODE);
+
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         notificationManager = getSystemService(NotificationManager.class);
         createNotificationChannel();
@@ -358,9 +355,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
             mMap.setMyLocationEnabled(true);
             fusedLocationClient.requestLocationUpdates(
                     new com.google.android.gms.location.LocationRequest.Builder(3000).setDurationMillis(5000).build(),new MyLocationCallback(), Looper.myLooper());
-            return;
         }
-        PermissionUtils.requestLocationPermissions(this, LOCATION_PERMISSION_REQUEST_CODE);
 
     }
 
@@ -454,13 +449,20 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     }
 
     private void dispatchTakePictureIntent() {
-        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        try {
-            startActivity(takePictureIntent);
-        } catch (ActivityNotFoundException e) {
-            // display error state to the user
-            Log.d("MapsActivity","Failed to start camera");
+
+        if (ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED){
+            Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            try {
+                startActivity(takePictureIntent);
+            } catch (ActivityNotFoundException e) {
+                // display error state to the user
+                Log.d("MapsActivity","Failed to start camera");
+            }
         }
+        else{
+            Toast.makeText(this,"Die app hat keine Berechtigung. Wechsle bitte dafür in die App-Einstellungen",Toast.LENGTH_SHORT).show();
+        }
+
     }
 
     private Marker addMarker(LatLng pos, String title){
@@ -500,26 +502,19 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
         switch (requestCode) {
-            case LOCATION_PERMISSION_REQUEST_CODE: {
+            case REQUEST_ALL_PERMISSIONS: {
                 if (PermissionUtils.isPermissionGranted(permissions, grantResults,
                         Manifest.permission.ACCESS_FINE_LOCATION) || PermissionUtils
                         .isPermissionGranted(permissions, grantResults,
                                 Manifest.permission.ACCESS_COARSE_LOCATION)) {
                     // Enable the my location layer if the permission has been granted.
                     enableMyLocation();
-                } else {
+                }
+                else {
+                    Toast.makeText(MapsActivity.this,"Die App wird deinen Standort nicht abrufen können",Toast.LENGTH_SHORT).show();
                     // Permission was denied.
-                    locationPermission = true;
                 }
-                break;
             }
-            case POST_NOTIFICATIONS_REQUEST_CODE:
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-
-                } else {
-                    notificationsPermission = true;
-                }
-                break;
             default:
                 super.onRequestPermissionsResult(requestCode, permissions, grantResults);
                 return;
@@ -528,23 +523,6 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     @Override
     protected void onResumeFragments() {
         super.onResumeFragments();
-        if (locationPermission) {
-            // Permission was not granted, display error dialog.
-            showMissingPermissionError();
-            locationPermission = false;
-        }
-        if (notificationsPermission){
-            Toast.makeText(MapsActivity.this,"Die App wird keine Benachrichtigungen schicken",Toast.LENGTH_LONG).show();
-            notificationsPermission = false;
-        }
-    }
-
-    /**
-     * Displays a dialog with error message explaining that the location permission is missing.
-     */
-    private void showMissingPermissionError() {
-        PermissionUtils.PermissionDeniedDialog
-                .newInstance(true).show(getSupportFragmentManager(), "dialog");
     }
 
 }
