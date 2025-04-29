@@ -14,6 +14,7 @@ public class MarkerData {
     public String danger;
     public List<String> confirmedBy = new ArrayList<>();
     public String reportedBy;
+    public String userText;
 
     public MarkerData(){
     }

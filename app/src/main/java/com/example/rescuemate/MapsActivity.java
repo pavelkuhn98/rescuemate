@@ -21,6 +21,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -232,7 +233,10 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                     Toast.makeText(MapsActivity.this,"Failed to get marker data",Toast.LENGTH_SHORT).show();
                     return null;
                 }
-                String snippetText1 = markerData.danger;
+                String snippetText1 = markerData.danger + "\n";
+                if (markerData.userText != null && !markerData.userText.isBlank()){
+                    snippetText1 += "\"" +markerData.userText +"\"";
+                }
                 String snippetText2 = "Confirmed By: "+ (markerData.confirmedBy == null ? 0 : markerData.confirmedBy.size()) + "\n" + "HINWEIS:" + "\n" + "Halten dieses Fenster gedrückt, \n um die Gefahr zu bestätigen";
 
                 TextView snippet1 = info.findViewById(R.id.desc);
@@ -385,11 +389,14 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
             final LatLng cameraPos = mMap.getCameraPosition().target;
             MarkerData markerData = new MarkerData(cameraPos.latitude, cameraPos.longitude);
             markerData.setReportedBy(userEmail);
+            EditText userText = findViewById(R.id.usertext);
+
             AlertDialog.Builder builder = new AlertDialog.Builder(this);
             LayoutInflater inflater = MapsActivity.this.getLayoutInflater();
             builder.setView(inflater.inflate(R.layout.alert_dialog,null))
                     .setPositiveButton("OK", (dialog, which) -> {
                         markerData.setDanger(selectedOption);
+                        markerData.setUserText(userText.getText().toString());
                         db.collection("markers")
                                 .add(markerData)
                                 .addOnSuccessListener(documentReference -> {
