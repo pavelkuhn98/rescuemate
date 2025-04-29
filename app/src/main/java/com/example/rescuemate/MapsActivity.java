@@ -133,13 +133,15 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
         });
         com.example.rescuemate.databinding.ActivityMapsBinding binding = ActivityMapsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-        PermissionUtils.requestPermissions(this,REQUEST_ALL_PERMISSIONS);
+
         storage = FirebaseStorage.getInstance("gs://rescuemate-96692");
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
+        assert mapFragment != null;
         mapFragment.getMapAsync(this);
+
         binding.bottomNavigationView.setOnItemSelectedListener(
                 item -> {
                     if(item.getItemId() == R.id.nav_map){
@@ -172,9 +174,9 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     }
 
     @Override
-    public void onMapReady(GoogleMap googleMap) {
+    public void onMapReady(@NonNull GoogleMap googleMap) {
         mMap = googleMap;
-
+        PermissionUtils.requestPermissions(this, REQUEST_ALL_PERMISSIONS);
         // Add a marker in Sydney and move the camera
         LatLng wilhelmsburg = new LatLng(53.505873, 9.999809);
         mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
@@ -501,24 +503,20 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
-        switch (requestCode) {
-            case REQUEST_ALL_PERMISSIONS: {
-                if (PermissionUtils.isPermissionGranted(permissions, grantResults,
-                        Manifest.permission.ACCESS_FINE_LOCATION) || PermissionUtils
-                        .isPermissionGranted(permissions, grantResults,
-                                Manifest.permission.ACCESS_COARSE_LOCATION)) {
-                    // Enable the my location layer if the permission has been granted.
-                    enableMyLocation();
-                }
-                else {
-                    Toast.makeText(MapsActivity.this,"Die App wird deinen Standort nicht abrufen können",Toast.LENGTH_SHORT).show();
-                    // Permission was denied.
-                }
+        if (requestCode == REQUEST_ALL_PERMISSIONS) {
+            if (PermissionUtils.isPermissionGranted(permissions, grantResults,
+                    Manifest.permission.ACCESS_FINE_LOCATION) || PermissionUtils
+                    .isPermissionGranted(permissions, grantResults,
+                            Manifest.permission.ACCESS_COARSE_LOCATION)) {
+                // Enable the my location layer if the permission has been granted.
+                enableMyLocation();
+            } else {
+                Toast.makeText(MapsActivity.this, "Die App wird deinen Standort nicht abrufen können", Toast.LENGTH_SHORT).show();
+                // Permission was denied.
             }
-            default:
-                super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-                return;
         }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        return;
     }
     @Override
     protected void onResumeFragments() {
