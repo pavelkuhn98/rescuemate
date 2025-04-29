@@ -16,6 +16,8 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Looper;
 import android.provider.MediaStore;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -94,6 +96,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
     private Uri photoUri;
     private ShapeableImageView shapeableImageView;
     private String selectedOption = "";
+    private String userTextInput = "";
 
     class MyLocationCallback extends LocationCallback{
 
@@ -382,6 +385,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
         cancelButton.setVisibility(View.VISIBLE);
         final String[] options = getResources().getStringArray(R.array.dangers);
         selectedOption = options[0];
+        userTextInput = "";
 
         cancelButton.setOnClickListener(v -> exitSettingMarker(okButton, cancelButton, currentLocation));
 
@@ -389,14 +393,13 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
             final LatLng cameraPos = mMap.getCameraPosition().target;
             MarkerData markerData = new MarkerData(cameraPos.latitude, cameraPos.longitude);
             markerData.setReportedBy(userEmail);
-            EditText userText = findViewById(R.id.usertext);
 
             AlertDialog.Builder builder = new AlertDialog.Builder(this);
             LayoutInflater inflater = MapsActivity.this.getLayoutInflater();
             builder.setView(inflater.inflate(R.layout.alert_dialog,null))
                     .setPositiveButton("OK", (dialog, which) -> {
                         markerData.setDanger(selectedOption);
-                        markerData.setUserText(userText.getText().toString());
+                        markerData.setUserText(userTextInput);
                         db.collection("markers")
                                 .add(markerData)
                                 .addOnSuccessListener(documentReference -> {
@@ -430,11 +433,12 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
 
             AlertDialog dialog = builder.create();
             dialog.show();
+            EditText userInput = dialog.findViewById(R.id.usertext);
             shapeableImageView = dialog.findViewById(R.id.img_showcase);
             Button gallerybutton = dialog.findViewById(R.id.galleryButton);
             Button camerabutton = dialog.findViewById(R.id.cameraButton);
             Spinner spinner = dialog.findViewById(R.id.dangerOptions);
-            if (shapeableImageView == null || gallerybutton == null || camerabutton == null || spinner == null){
+            if (shapeableImageView == null || gallerybutton == null || camerabutton == null || spinner == null || userInput == null){
                 Log.e("MAPS ACTIVITY","Imageview not loaded");
             }
             else{
@@ -453,6 +457,23 @@ public class MapsActivity extends AppCompatActivity implements GoogleMap.OnMyLoc
                         selectedOption = options[0];
                     }
                 });
+                userInput.addTextChangedListener(new TextWatcher() {
+                    @Override
+                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+
+                    }
+
+                    @Override
+                    public void onTextChanged(CharSequence s, int start, int before, int count) {
+
+                    }
+
+                    @Override
+                    public void afterTextChanged(Editable s) {
+                        userTextInput = s.toString();
+                    }
+                });
+
             }
         });
     }
