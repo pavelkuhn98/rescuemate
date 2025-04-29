@@ -48,6 +48,7 @@
     <EditText
         android:id="@+id/usertext"
         android:inputType="text"
+        android:hint="Textnachricht (optional)"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
