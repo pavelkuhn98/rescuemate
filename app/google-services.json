@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "60477271201",
+    "project_id": "rescuemate-96692",
+    "storage_bucket": "rescuemate-96692.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:60477271201:android:3704d4bf05d8cb91f854e0",
+        "android_client_info": {
+          "package_name": "com.example.rescuemate"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "60477271201-iasrmnb75a8psh2f9ssrlj5k2qpd50r9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.rescuemate",
+            "certificate_hash": "5fcbeb9aa75d93e1e8d756df020c132caec81308"
+          }
+        },
+        {
+          "client_id": "60477271201-39bngt1890u9kkdk6rr4fl7ukb7i8vjl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3I5Z7jqSAA2gtT1LnB1OfSXpw32d_IHk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "60477271201-39bngt1890u9kkdk6rr4fl7ukb7i8vjl.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
